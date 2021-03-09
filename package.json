@@ -18,6 +18,9 @@
     "dist": "tsc",
     "build": "tsc"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/dderevjanik/wsdl-tsclient.git"
