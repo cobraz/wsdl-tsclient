@@ -1,3 +1,4 @@
+import camelcase from "camelcase";
 import path from "path";
 import {
     ImportDeclarationStructure,
@@ -8,7 +9,6 @@ import {
     StructureKind,
 } from "ts-morph";
 import { Definition, Method, ParsedWsdl } from "./models/parsed-wsdl";
-import { changeCase } from "./utils/change-case";
 import { Logger } from "./utils/logger";
 
 export interface GeneratorOptions {
@@ -31,6 +31,17 @@ function addSafeImport(imports: OptionalKind<ImportDeclarationStructure>[], modu
     }
 }
 
+const incorrectPropNameChars = [" ", "-", "."];
+/**
+ * This is temporally method to fix this issue https://github.com/dsherret/ts-morph/issues/1160
+ */
+function sanitizePropName(propName: string) {
+    if (incorrectPropNameChars.some(char => propName.includes(char))) {
+        return `"${propName}"`;
+    }
+    return propName;
+}
+
 function createProperty(
     name: string,
     type: string,
@@ -40,7 +51,7 @@ function createProperty(
 ): PropertySignatureStructure {
     return {
         kind: StructureKind.PropertySignature,
-        name: changeCase(name),
+        name: sanitizePropName(name),
         docs: [doc],
         hasQuestionToken: true,
         type: isArray ? `Array<${type}>` : type,
@@ -159,10 +170,10 @@ export async function generate(parsedWsdl: ParsedWsdl, outDir: string, options: 
                 // TODO: Deduplicate PortMethods
                 allMethods.push(method);
                 portFileMethods.push({
-                    name: method.name,
+                    name: sanitizePropName(method.name),
                     parameters: [
                         {
-                            name: method.paramName,
+                            name: camelcase(method.paramName),
                             type: method.paramDefinition ? method.paramDefinition.name : "{}",
                         },
                         {
@@ -178,7 +189,7 @@ export async function generate(parsedWsdl: ParsedWsdl, outDir: string, options: 
             if (!mergedOptions.emitDefinitionsOnly) {
                 addSafeImport(serviceImports, `../ports/${port.name}`, port.name);
                 servicePorts.push({
-                    name: port.name,
+                    name: sanitizePropName(port.name),
                     isReadonly: true,
                     type: port.name,
                 });
@@ -199,7 +210,7 @@ export async function generate(parsedWsdl: ParsedWsdl, outDir: string, options: 
 
         if (!mergedOptions.emitDefinitionsOnly) {
             addSafeImport(clientImports, `./services/${service.name}`, service.name);
-            clientServices.push({ name: service.name, type: service.name });
+            clientServices.push({ name: sanitizePropName(service.name), type: service.name });
 
             serviceFile.addImportDeclarations(serviceImports);
             serviceFile.addStatements([
@@ -239,10 +250,10 @@ export async function generate(parsedWsdl: ParsedWsdl, outDir: string, options: 
                 properties: clientServices,
                 extends: ["SoapClient"],
                 methods: allMethods.map<OptionalKind<MethodSignatureStructure>>((method) => ({
-                    name: `${method.name}Async`,
+                    name: sanitizePropName(`${(method.name)}Async`),
                     parameters: [
                         {
-                            name: method.paramName,
+                            name: camelcase(method.paramName),
                             type: method.paramDefinition ? method.paramDefinition.name : "{}",
                         },
                     ],
